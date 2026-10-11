@@ -1,0 +1,17 @@
+# Optional eBPF lab configuration. Run Beyla/OBI on the Linux host, not in the core Compose stack.
+discovery:
+  services:
+    - open_ports: 8080-8082
+
+otel_traces_export:
+  endpoint: http://localhost:4318
+  protocol: http/protobuf
+
+otel_metrics_export:
+  endpoint: http://localhost:4318
+  protocol: http/protobuf
+
+attributes:
+  select:
+    http_server_request_duration_seconds:
+      include: [http.request.method, http.response.status_code, url.path, service.name]

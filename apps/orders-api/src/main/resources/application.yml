@@ -1,0 +1,26 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: orders-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/orders}
+    username: ${DB_USER:training}
+    password: ${DB_PASSWORD:training}
+  sql:
+    init:
+      mode: always
+services:
+  inventory-url: ${INVENTORY_URL:http://inventory-api:8081}
+  payment-url: ${PAYMENT_URL:http://payment-api:8082}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+logging:
+  file:
+    name: /var/log/training/orders-api.log
+  pattern:
+    file: 'ts=%d{yyyy-MM-dd''T''HH:mm:ss.SSSXXX} level=%p service=orders-api trace_id=%X{trace_id:-none} span_id=%X{span_id:-none} logger=%logger{24} msg="%replace(%msg){''"'',''\\"''}"%n'
+    console: 'ts=%d{HH:mm:ss.SSS} level=%p service=orders-api trace_id=%X{trace_id:-none} span_id=%X{span_id:-none} msg="%msg"%n'

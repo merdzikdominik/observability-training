@@ -1,0 +1,183 @@
+name: observability-training
+
+x-app-common: &app-common
+  restart: unless-stopped
+  volumes:
+    - app-logs:/var/log/training
+  networks: [training]
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-17-alpine}
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: training
+      POSTGRES_PASSWORD: training
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U training -d orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+    networks: [training]
+
+  inventory-api:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: apps/Dockerfile
+      args:
+        MODULE: inventory-api
+        OTEL_AGENT_VERSION: ${OTEL_AGENT_VERSION:-2.31.1}
+    environment:
+      INVENTORY_ERROR_RATE: "0.01"
+      INVENTORY_SLOW_RATE: "0.05"
+      INVENTORY_SLOW_MS: "900"
+    ports: ["8081:8081"]
+
+  payment-api:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: apps/Dockerfile
+      args:
+        MODULE: payment-api
+        OTEL_AGENT_VERSION: ${OTEL_AGENT_VERSION:-2.31.1}
+    environment:
+      PAYMENT_ERROR_RATE: "0.03"
+      PAYMENT_MIN_DELAY_MS: "35"
+      PAYMENT_MAX_DELAY_MS: "220"
+    ports: ["8082:8082"]
+
+  orders-api:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: apps/Dockerfile
+      args:
+        MODULE: orders-api
+        OTEL_AGENT_VERSION: ${OTEL_AGENT_VERSION:-2.31.1}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/orders
+      DB_USER: training
+      DB_PASSWORD: training
+      INVENTORY_URL: http://inventory-api:8081
+      PAYMENT_URL: http://payment-api:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory-api:
+        condition: service_started
+      payment-api:
+        condition: service_started
+    ports: ["8080:8080"]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:${OTEL_COLLECTOR_VERSION:-0.162.0}
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - app-logs:/var/log/training:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+      - "13133:13133"
+    depends_on: [tempo, loki]
+    networks: [training]
+
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION:-v3.14.0}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=6h
+      - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["9090:9090"]
+    depends_on: [otel-collector]
+    networks: [training]
+
+  alertmanager:
+    image: prom/alertmanager:${ALERTMANAGER_VERSION:-v0.34.1}
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports: ["9093:9093"]
+    depends_on: [alert-webhook]
+    networks: [training]
+
+  alert-webhook:
+    build: ./tools/alert-webhook
+    ports: ["5001:5001"]
+    networks: [training]
+
+  tempo:
+    image: grafana/tempo:${TEMPO_VERSION:-3.1.0}
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"
+    networks: [training]
+
+  loki:
+    image: grafana/loki:${LOKI_VERSION:-3.7.8}
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./loki/loki.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    ports: ["3100:3100"]
+    networks: [training]
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION:-13.2.3}
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus, tempo, loki]
+    networks: [training]
+
+  cardinality-demo:
+    build: ./tools/cardinality-exporter
+    ports: ["9101:9101"]
+    networks: [training]
+
+  k6:
+    image: grafana/k6:${K6_VERSION:-2.3.0}
+    profiles: ["tools"]
+    volumes:
+      - ./load:/scripts:ro
+    networks: [training]
+
+networks:
+  training:
+
+volumes:
+  postgres-data:
+  app-logs:
+  prometheus-data:
+  alertmanager-data:
+  tempo-data:
+  loki-data:
+  grafana-data:

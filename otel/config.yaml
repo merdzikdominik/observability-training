@@ -1,0 +1,88 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  filelog/orders:
+    include: [/var/log/training/orders-api.log]
+    start_at: beginning
+    operators:
+      - type: add
+        field: resource["service.name"]
+        value: orders-api
+      - type: add
+        field: resource["service.namespace"]
+        value: shop
+  filelog/inventory:
+    include: [/var/log/training/inventory-api.log]
+    start_at: beginning
+    operators:
+      - type: add
+        field: resource["service.name"]
+        value: inventory-api
+      - type: add
+        field: resource["service.namespace"]
+        value: shop
+  filelog/payment:
+    include: [/var/log/training/payment-api.log]
+    start_at: beginning
+    operators:
+      - type: add
+        field: resource["service.name"]
+        value: payment-api
+      - type: add
+        field: resource["service.namespace"]
+        value: shop
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  resource/training:
+    attributes:
+      - key: training.environment
+        action: upsert
+        value: linux-vm
+  batch:
+    timeout: 2s
+    send_batch_size: 512
+
+exporters:
+  debug:
+    verbosity: detailed
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/training, batch]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/training, batch]
+      exporters: [debug, otlp/tempo]
+    logs:
+      receivers: [filelog/orders, filelog/inventory, filelog/payment]
+      processors: [memory_limiter, resource/training, batch]
+      exporters: [debug, otlphttp/loki]

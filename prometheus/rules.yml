@@ -1,0 +1,18 @@
+groups:
+  - name: training-recording-rules
+    interval: 15s
+    rules:
+      # Participants can add recording rules here during the PromQL lab.
+      - record: training:up:sum
+        expr: sum(up)
+
+  - name: training-alerts
+    rules:
+      - alert: ObservabilityLabTargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Target {{ $labels.instance }} is down"
+          description: "A Prometheus scrape target has been unavailable for at least one minute."

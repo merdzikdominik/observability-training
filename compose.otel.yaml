@@ -1,0 +1,43 @@
+services:
+  orders-api:
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -javaagent:/otel/opentelemetry-javaagent.jar
+        -Xms128m -Xmx384m
+      OTEL_SERVICE_NAME: orders-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: none
+      OTEL_METRICS_EXEMPLAR_FILTER: always_on
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=training,service.namespace=shop
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+  inventory-api:
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -javaagent:/otel/opentelemetry-javaagent.jar
+        -Xms128m -Xmx384m
+      OTEL_SERVICE_NAME: inventory-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: none
+      OTEL_METRICS_EXEMPLAR_FILTER: always_on
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=training,service.namespace=shop
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+  payment-api:
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -javaagent:/otel/opentelemetry-javaagent.jar
+        -Xms128m -Xmx384m
+      OTEL_SERVICE_NAME: payment-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: none
+      OTEL_METRICS_EXEMPLAR_FILTER: always_on
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=training,service.namespace=shop
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"

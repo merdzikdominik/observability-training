@@ -1,0 +1,20 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: inventory-api
+chaos:
+  error-rate: ${INVENTORY_ERROR_RATE:0.01}
+  slow-rate: ${INVENTORY_SLOW_RATE:0.05}
+  slow-ms: ${INVENTORY_SLOW_MS:900}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+logging:
+  file:
+    name: /var/log/training/inventory-api.log
+  pattern:
+    file: 'ts=%d{yyyy-MM-dd''T''HH:mm:ss.SSSXXX} level=%p service=inventory-api trace_id=%X{trace_id:-none} span_id=%X{span_id:-none} logger=%logger{24} msg="%replace(%msg){''"'',''\\"''}"%n'
+    console: 'ts=%d{HH:mm:ss.SSS} level=%p service=inventory-api trace_id=%X{trace_id:-none} span_id=%X{span_id:-none} msg="%msg"%n'
